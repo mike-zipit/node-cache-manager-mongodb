@@ -6,7 +6,9 @@
 
 var Client = require('mongodb').MongoClient,
 uri = require('mongodb-uri'),
-zlib = require('zlib'), noop = function () {};
+zlib = require('zlib'),
+noop = function () {},
+debug = require('debug')('node-cache-manager-mongodb');
 
 /**
  * Export `MongoStore`.
@@ -71,7 +73,6 @@ function MongoStore(args) {
         collection.createIndex({
           expiresAt : 1
         }, {
-          unique : true,
           background : true,
           expireAfterSeconds : store.MongoOptions.ttl
         }, function (err, indexName) {
@@ -146,14 +147,19 @@ MongoStore.prototype.get = function get(key, options, fn) {
     key : key
   }, function findOne(err, data) {
     if (err) {
+      console.error(err);
       return fn(err);
     }
     if (!data) {
+      debug(`No data returned for ${key}`);
       return fn(null, null);
     }
     if (data.expire < Date.now()) {
+      debug(`Data expired for ${key}: `, JSON.stringify(data), data.expire - Date.now(), Date.now());
       store.del(key);
       return fn(null, null);
+    } else {
+      debug(`Data cached for ${key}: `, JSON.stringify(data), data.expire - Date.now(), Date.now());
     }
     try {
       if (data.compressed) {
@@ -200,8 +206,9 @@ MongoStore.prototype.set = function set(key, val, options, fn) {
     data = {
       key : key,
       value : val,
-      expire : Date.now() + ((ttl || 60) * 1000)
+      expire : parseInt(Date.now() + ((ttl || 60) * 1000))
     };
+    debug(`Saving ${key} to cache: `, JSON.stringify(data), ttl, data.expire - Date.now(), Date.now());
   } catch (err) {
     return fn(err);
   }

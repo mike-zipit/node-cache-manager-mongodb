@@ -1,7 +1,6 @@
-
 {
   "name": "cache-manager-mongodb",
-  "version": "0.1.7",
+  "version": "0.1.8",
   "description": "Mongodb store for the node-cache-manager",
   "main": "index.js",
   "repository": {
@@ -18,12 +17,15 @@
   "license": "MIT",
   "dependencies": {
     "mongodb": "^2.2.29",
-    "mongodb-uri": "^0.9.7"
+    "mongodb-uri": "^0.9.7",
+    "node-debug": "^0.1.0"
   },
   "devDependencies": {
+    "cache-manager": "^2.2.0",
     "grunt": "^0.4.5",
     "grunt-contrib-jshint": "^0.10.0",
     "jshint-stylish": "^1.0.2",
-    "load-grunt-tasks": "^2.0.0"
+    "load-grunt-tasks": "^2.0.0",
+    "mocha": "^3.2.0"
   }
 }
