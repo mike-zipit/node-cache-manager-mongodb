@@ -1,24 +1,41 @@
 'use strict';
 
+
 /**
  * Module dependencies.
  */
 
+
 var Client = require('mongodb').MongoClient,
-uri = require('mongodb-uri'),
-zlib = require('zlib'),
-noop = function () {},
-debug = require('debug')('node-cache-manager-mongodb');
+  uri = require('mongodb-uri'),
+  _ = require('lodash'),
+  zlib = require('zlib'),
+  noop = function () {},
+  debug = require('debug')('node-cache-manager-mongodb');
+
+
+var validOptionNames = ['poolSize', 'ssl', 'sslValidate', 'sslCA', 'sslCert',
+  'sslKey', 'sslPass', 'sslCRL', 'autoReconnect', 'noDelay', 'keepAlive', 'connectTimeoutMS', 'family',
+  'socketTimeoutMS', 'reconnectTries', 'reconnectInterval', 'ha', 'haInterval',
+  'replicaSet', 'secondaryAcceptableLatencyMS', 'acceptableLatencyMS',
+  'connectWithNoPrimary', 'authSource', 'w', 'wtimeout', 'j', 'forceServerObjectId',
+  'serializeFunctions', 'ignoreUndefined', 'raw', 'bufferMaxEntries',
+  'readPreference', 'pkFactory', 'promiseLibrary', 'readConcern', 'maxStalenessSeconds',
+  'loggerLevel', 'logger', 'promoteValues', 'promoteBuffers', 'promoteLongs',
+  'domainsEnabled', 'keepAliveInitialDelay', 'checkServerIdentity', 'validateOptions', 'appname', 'auth'];
+
 
 /**
  * Export `MongoStore`.
  */
+
 
 exports = module.exports = {
   create : function (args) {
     return MongoStore(args);
   }
 };
+
 
 /**
  * MongoStore constructor.
@@ -27,17 +44,21 @@ exports = module.exports = {
  * @api public
  */
 
+
 function MongoStore(args) {
+
 
   if (!(this instanceof MongoStore)) {
     return new MongoStore(args);
   }
+
 
   var store = this;
   var conn = (args.uri) ? args.uri : args;
   var options = (args.options) ? args.options : {};
   store.MongoOptions = options;
   store.name = 'mongodb';
+
 
   if ('object' === typeof conn) {
     if ('function' !== typeof conn.collection) {
@@ -49,10 +70,10 @@ function MongoStore(args) {
       } else {
         store.MongoOptions.database = store.MongoOptions.database || store.MongoOptions.db;
         store.MongoOptions.hosts = store.MongoOptions.hosts || [{
-              port : store.MongoOptions.port || 27017,
-              host : store.MongoOptions.host || '127.0.0.1'
-            }
-          ];
+          port : store.MongoOptions.port || 27017,
+          host : store.MongoOptions.host || '127.0.0.1'
+        }
+        ];
         store.MongoOptions.hosts = store.MongoOptions.hosts || 3600;
         conn = uri.format(store.MongoOptions);
       }
@@ -64,10 +85,15 @@ function MongoStore(args) {
   store.coll = store.MongoOptions.collection || 'cacheman';
   store.compression = store.MongoOptions.compression || false;
 
+
   if ('string' === typeof conn) {
-    Client.connect(conn, store.MongoOptions, function getDb(err, db) {
+    Client.connect(conn, _.pick(store.MongoOptions, validOptionNames), function getDb(err, db) {
       store.client = db;
       db.createCollection(store.coll, function (err, collection) {
+        if (err) {
+          console.error(err);
+          throw err;
+        }
         store.collection = collection;
         // Create an index on the a field
         collection.createIndex({
@@ -86,6 +112,7 @@ function MongoStore(args) {
     });
   }
 
+
   /**
    * Compress data value.
    *
@@ -99,6 +126,7 @@ function MongoStore(args) {
       return fn(null, data);
     }
 
+
     zlib.gzip(data.value, function (err, val) {
       // If compression was successful, then use the compressed data.
       // Otherwise, save the original data.
@@ -107,9 +135,11 @@ function MongoStore(args) {
         data.compressed = true;
       }
 
+
       fn(err, data);
     });
   };
+
 
   /**
    * Decompress data value.
@@ -124,6 +154,7 @@ function MongoStore(args) {
   };
 }
 
+
 /**
  * Get an entry.
  *
@@ -133,7 +164,9 @@ function MongoStore(args) {
  * @api public
  */
 
+
 MongoStore.prototype.get = function get(key, options, fn) {
+
 
   if ('function' === typeof options) {
     fn = options;
@@ -141,7 +174,9 @@ MongoStore.prototype.get = function get(key, options, fn) {
   }
   fn = fn || noop;
 
+
   var store = this;
+
 
   store.collection.findOne({
     key : key
@@ -172,6 +207,7 @@ MongoStore.prototype.get = function get(key, options, fn) {
   });
 };
 
+
 /**
  * Set an entry.
  *
@@ -182,7 +218,9 @@ MongoStore.prototype.get = function get(key, options, fn) {
  * @api public
  */
 
+
 MongoStore.prototype.set = function set(key, val, options, fn) {
+
 
   if ('function' === typeof options) {
     fn = options;
@@ -190,28 +228,32 @@ MongoStore.prototype.set = function set(key, val, options, fn) {
   }
   fn = fn || noop;
 
+
   var store = this;
   var ttl = (options && (options.ttl || options.ttl === 0)) ? options.ttl : store.MongoOptions.ttl;
 
+
   var data,
-  query = {
-    key : key
-  },
-  options = {
-    upsert : true,
-    safe : true
-  };
+    query = {
+      key : key
+    },
+    options = {
+      upsert : true,
+      safe : true
+    };
+
 
   try {
     data = {
       key : key,
       value : val,
-      expire : parseInt(Date.now() + ((ttl || 60) * 1000))
+      expiresAt : Date.now() + ((ttl || 60) * 1000)
     };
     debug(`Saving ${key} to cache: `, JSON.stringify(data), ttl, data.expire - Date.now(), Date.now());
   } catch (err) {
     return fn(err);
   }
+
 
   if (!store.compression) {
     update(data);
@@ -223,6 +265,7 @@ MongoStore.prototype.set = function set(key, val, options, fn) {
       update(data);
     });
   }
+
 
   function update(data) {
     store.collection.update(query, data, options, function _update(err, data) {
@@ -236,7 +279,9 @@ MongoStore.prototype.set = function set(key, val, options, fn) {
     });
   }
 
+
 };
+
 
 /**
  * Delete an entry.
@@ -245,6 +290,7 @@ MongoStore.prototype.set = function set(key, val, options, fn) {
  * @param {Function} fn
  * @api public
  */
+
 
 MongoStore.prototype.del = function del(key, options, fn) {
   if (typeof options === 'function') {
@@ -259,6 +305,7 @@ MongoStore.prototype.del = function del(key, options, fn) {
   }, fn);
 };
 
+
 /**
  * Clear all entries for this bucket.
  *
@@ -267,21 +314,27 @@ MongoStore.prototype.del = function del(key, options, fn) {
  * @api public
  */
 
+
 MongoStore.prototype.reset = function reset(key, fn) {
   var store = this;
+
 
   if ('function' === typeof key) {
     fn = key;
     key = null;
   }
 
+
   fn = fn || noop;
+
 
   store.collection.remove({}, {
     safe : true
   }, fn);
 
+
 };
+
 
 MongoStore.prototype.isCacheableValue = function (value) {
   return value !== null && value !== undefined;
